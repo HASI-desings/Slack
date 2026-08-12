@@ -88,8 +88,8 @@ body{
   font-size:12px; font-weight:600; color:var(--text-dim);
   letter-spacing:0.01em;
 }
-.dot{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); }
-.dot.pulse{ animation:pulse 1.8s ease-in-out infinite; }
+.dot{ width:6px; height:6px; border-radius:50%; background:var(--text-faint); box-shadow:none; transition:background .3s, box-shadow .3s; }
+.dot.pulse{ background:var(--mint); box-shadow:0 0 8px var(--mint); animation:pulse 1.8s ease-in-out infinite; }
 @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:0.35} }
 
 /* ---------- screens ---------- */
@@ -322,7 +322,7 @@ body{
       </div>
       <div class="brand-name"><b>Slack</b></div>
     </div>
-    <div class="status-pill"><span class="dot pulse"></span> Live · Geyser</div>
+    <div class="status-pill" id="statusPill" onclick="toggleLiveEngine()" style="cursor:pointer;"><span class="dot" id="statusDot"></span> <span id="statusText">Offline</span></div>
   </div>
 
   <div class="screens">
@@ -330,6 +330,14 @@ body{
     <!-- DASHBOARD -->
     <section class="screen active" id="screen-dashboard">
       <div class="pause-banner" id="pauseBanner">⏸ Copy-trading paused — no new positions will open</div>
+
+      <div class="card" id="engineCard" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div>
+          <div class="set-label">Live tracking</div>
+          <div class="set-sub" id="engineSub">Tap to connect via your Helius key — runs only while this tab is open</div>
+        </div>
+        <div class="switch" id="engineSwitch" onclick="toggleLiveEngine()"><div class="knob"></div></div>
+      </div>
 
       <div class="hero">
         <div class="hero-label">Session P&L</div>
@@ -357,7 +365,10 @@ body{
 
     <!-- LEADERBOARD -->
     <section class="screen" id="screen-leaderboard">
-      <div class="section-title">Top whales · 30d</div>
+      <div class="section-title" style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Top whales · tracked</span>
+        <button class="pill-btn test" onclick="addWhalePrompt()" style="text-transform:none; letter-spacing:normal;">+ Add whale</button>
+      </div>
       <div id="leaderboardList"></div>
     </section>
 
@@ -488,6 +499,8 @@ body{
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="js/live-engine.js"></script>
 <script>
 /* ---------------- Supabase ---------------- */
 const SUPABASE_URL = "https://bvxljqprdvgrnhrfmhpz.supabase.co";
@@ -724,6 +737,64 @@ document.getElementById('sheetBackdrop').addEventListener('click', closeSheet);
 if(isIos() && !isInStandaloneMode()){
   setTimeout(openSheet, 1400);
 }
+
+/* ---------------- Live engine control (browser-only tracking) ---------------- */
+let liveEngine = null;
+
+function setEngineUI(status){
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const sw = document.getElementById('engineSwitch');
+  const sub = document.getElementById('engineSub');
+  dot.classList.toggle('pulse', status === 'live');
+  if(status === 'live'){
+    text.textContent = 'Live · Geyser';
+    sw.classList.add('on');
+    sub.textContent = 'Connected — tracking followed whales in real time';
+  } else if(status === 'connecting'){
+    text.textContent = 'Connecting…';
+  } else {
+    text.textContent = 'Offline';
+    sw.classList.remove('on');
+    sub.textContent = 'Tap to connect via your Helius key — runs only while this tab is open';
+  }
+}
+
+async function toggleLiveEngine(){
+  if(liveEngine && liveEngine.running){
+    await liveEngine.stop();
+    setEngineUI('stopped');
+    return;
+  }
+  setEngineUI('connecting');
+  const { data: keyRow } = await sb.from('api_keys').select('key_value').eq('key_name','helius_geyser').maybeSingle();
+  const heliusKey = keyRow && keyRow.key_value;
+  if(!heliusKey){
+    alert('Add your Helius API key in Settings first.');
+    setEngineUI('stopped');
+    return;
+  }
+  try{
+    liveEngine = new LiveEngine(sb);
+    liveEngine.onStatusChange = setEngineUI;
+    await liveEngine.start(heliusKey);
+    setEngineUI('live');
+  }catch(err){
+    alert(err.message);
+    setEngineUI('stopped');
+  }
+}
+
+async function addWhalePrompt(){
+  const address = prompt('Whale wallet address (Solana public key):');
+  if(!address) return;
+  const name = prompt('Give this whale a display name:', address.slice(0,4)+'…'+address.slice(-4)) || address.slice(0,6);
+  const { error } = await sb.from('whales').insert({ name, address, is_followed: true });
+  if(error){ alert('Could not add whale: '+error.message); return; }
+  loadWhales();
+}
+
+setEngineUI('stopped');
 
 /* ---------------- Service worker ---------------- */
 if('serviceWorker' in navigator){
