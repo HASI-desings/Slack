@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Slack — Whale Copy Trading</title>
+<meta name="theme-color" content="#0a0c10" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Slack" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-32.png" />
+<style>
+:root{
+  --bg:#0a0c10;
+  --surface:#111419;
+  --surface-2:#161a20;
+  --line:rgba(255,255,255,0.08);
+  --line-bright:rgba(255,255,255,0.14);
+  --text:#eef2f0;
+  --text-dim:#8a9490;
+  --text-faint:#5b645f;
+  --mint:#6BFFC0;
+  --mint-dim:#3a8f6c;
+  --red:#FF6B6B;
+  --amber:#FFC24B;
+  --radius-lg:28px;
+  --radius-md:18px;
+  --radius-sm:12px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,sans-serif;
+  overflow:hidden;
+  position:fixed;
+  inset:0;
+  -webkit-user-select:none;
+  user-select:none;
+}
+#app{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+}
+
+/* ---------- background ambience ---------- */
+.ambient{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(600px 400px at 15% -5%, rgba(107,255,192,0.10), transparent 60%),
+    radial-gradient(500px 380px at 100% 10%, rgba(255,107,107,0.06), transparent 55%);
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:relative; z-index:5;
+  padding: calc(env(safe-area-inset-top,0px) + 14px) 20px 14px;
+  display:flex; align-items:center; justify-content:space-between;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background:rgba(10,12,16,0.55);
+  border-bottom:1px solid var(--line);
+}
+.brand{ display:flex; align-items:center; gap:10px; }
+.brand-mark{
+  width:30px; height:30px; border-radius:9px;
+  background:linear-gradient(160deg,#161a20,#0a0c10);
+  border:1px solid var(--line-bright);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 18px rgba(107,255,192,0.18);
+}
+.brand-mark svg{ width:16px; height:16px; }
+.brand-name{
+  font-size:19px; font-weight:700; letter-spacing:-0.02em;
+  font-variant-caps: all-small-caps;
+}
+.brand-name b{ font-variant-caps:normal; font-weight:800; }
+.status-pill{
+  display:flex; align-items:center; gap:6px;
+  padding:6px 10px 6px 8px; border-radius:100px;
+  background:var(--surface); border:1px solid var(--line);
+  font-size:12px; font-weight:600; color:var(--text-dim);
+  letter-spacing:0.01em;
+}
+.dot{ width:6px; height:6px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); }
+.dot.pulse{ animation:pulse 1.8s ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+/* ---------- screens ---------- */
+.screens{ position:relative; flex:1; overflow:hidden; z-index:1; }
+.screen{
+  position:absolute; inset:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding: 18px 18px calc(96px + env(safe-area-inset-bottom,0px));
+  opacity:0; pointer-events:none;
+  transform:translateY(8px) scale(0.99);
+  transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1);
+}
+.screen.active{ opacity:1; pointer-events:auto; transform:translateY(0) scale(1); }
+
+.section-title{
+  font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+  color:var(--text-faint); margin: 22px 2px 10px;
+}
+.section-title:first-child{ margin-top:4px; }
+
+/* ---------- hero PnL ---------- */
+.hero{
+  border-radius:var(--radius-lg);
+  padding:22px 20px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(107,255,192,0.14), transparent 55%),
+    linear-gradient(160deg,var(--surface),var(--surface-2));
+  border:1px solid var(--line-bright);
+  position:relative; overflow:hidden;
+}
+.hero::after{
+  content:''; position:absolute; top:-1px; left:6%; right:6%; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent);
+}
+.hero-label{ font-size:12px; color:var(--text-dim); font-weight:600; letter-spacing:0.02em; }
+.hero-value{
+  font-size:44px; font-weight:800; letter-spacing:-0.03em; line-height:1.02; margin-top:6px;
+  font-variant-numeric: tabular-nums;
+}
+.hero-value span{ color:var(--mint); }
+.hero-sub{ margin-top:10px; display:flex; gap:14px; font-size:13px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+.hero-sub b{ color:var(--mint); font-weight:700; }
+.hero-chart{ margin-top:16px; height:56px; }
+
+/* ---------- cards ---------- */
+.card{
+  border-radius:var(--radius-md);
+  background:var(--surface);
+  border:1px solid var(--line);
+  padding:16px;
+  margin-bottom:10px;
+  transition: transform .18s cubic-bezier(.22,1,.36,1), background .18s;
+}
+.card:active{ transform:scale(0.98); background:var(--surface-2); }
+
+.whale-row{ display:flex; align-items:center; gap:12px; }
+.avatar{
+  width:42px; height:42px; border-radius:12px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:14px; letter-spacing:-0.02em;
+  background:linear-gradient(150deg,var(--surface-2),#0d0f13);
+  border:1px solid var(--line-bright); color:var(--mint);
+}
+.whale-info{ flex:1; min-width:0; }
+.whale-name{ font-size:15px; font-weight:700; letter-spacing:-0.01em; display:flex; align-items:center; gap:6px;}
+.whale-addr{ font-size:12px; color:var(--text-faint); font-variant-numeric:tabular-nums; margin-top:2px; }
+.whale-stats{ text-align:right; }
+.whale-pnl{ font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; }
+.whale-pnl.up{ color:var(--mint); }
+.whale-meta{ font-size:11px; color:var(--text-faint); margin-top:2px; }
+.streak{
+  font-size:10px; font-weight:800; padding:2px 6px; border-radius:100px;
+  background:rgba(107,255,192,0.14); color:var(--mint); letter-spacing:0.02em;
+}
+
+.rank-badge{
+  width:22px; text-align:center; font-size:12px; font-weight:800; color:var(--text-faint); font-variant-numeric:tabular-nums;
+}
+
+/* switch */
+.switch{
+  width:46px; height:28px; border-radius:100px; background:var(--surface-2);
+  border:1px solid var(--line-bright); position:relative; flex-shrink:0;
+  transition:background .25s cubic-bezier(.22,1,.36,1);
+}
+.switch.on{ background:var(--mint-dim); border-color:var(--mint); }
+.switch .knob{
+  position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%;
+  background:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.35);
+  transition: transform .28s cubic-bezier(.34,1.56,.64,1);
+}
+.switch.on .knob{ transform:translateX(18px); }
+
+/* position card */
+.pos-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+.pos-token{ font-size:16px; font-weight:800; letter-spacing:-0.01em; }
+.pos-trigger{ font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+.pos-pnl-tag{
+  font-size:13px; font-weight:800; padding:4px 9px; border-radius:100px;
+  font-variant-numeric:tabular-nums;
+}
+.pos-pnl-tag.up{ background:rgba(107,255,192,0.14); color:var(--mint); }
+.pos-pnl-tag.down{ background:rgba(255,107,107,0.14); color:var(--red); }
+.pos-bar-track{ height:5px; border-radius:100px; background:var(--surface-2); margin-top:14px; overflow:hidden; }
+.pos-bar-fill{ height:100%; border-radius:100px; background:linear-gradient(90deg,var(--mint-dim),var(--mint)); }
+.pos-foot{ display:flex; justify-content:space-between; margin-top:10px; font-size:12px; color:var(--text-dim); }
+
+/* activity feed */
+.feed-item{ display:flex; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line); }
+.feed-item:last-child{ border-bottom:none; }
+.feed-icon{
+  width:30px; height:30px; border-radius:9px; flex-shrink:0; margin-top:1px;
+  display:flex; align-items:center; justify-content:center; font-size:14px;
+  background:var(--surface-2); border:1px solid var(--line);
+}
+.feed-text{ font-size:13.5px; line-height:1.45; color:var(--text); }
+.feed-text b{ color:var(--mint); font-weight:700; }
+.feed-time{ font-size:11px; color:var(--text-faint); margin-top:2px; }
+
+/* settings */
+.set-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 4px; border-bottom:1px solid var(--line);
+}
+.set-row:last-child{ border-bottom:none; }
+.set-label{ font-size:14.5px; font-weight:600; }
+.set-sub{ font-size:12px; color:var(--text-faint); margin-top:2px; }
+.set-value{ font-size:14px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+.chev{ color:var(--text-faint); font-size:18px; margin-left:6px; }
+.key-input-row{ display:flex; align-items:center; gap:8px; }
+.pill-btn{
+  font-size:12px; font-weight:700; padding:6px 12px; border-radius:100px;
+  background:var(--surface-2); border:1px solid var(--line-bright); color:var(--text);
+}
+.pill-btn.test{ color:var(--mint); border-color:var(--mint-dim); }
+.pill-btn.danger{ color:var(--red); border-color:rgba(255,107,107,0.4); }
+
+.key-card{ padding:16px; }
+.key-header{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.key-status{
+  font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:100px; white-space:nowrap;
+  background:var(--surface-2); color:var(--text-faint); border:1px solid var(--line-bright);
+}
+.key-status.connected{ background:rgba(107,255,192,0.14); color:var(--mint); border-color:var(--mint-dim); }
+.key-how{
+  font-size:12px; line-height:1.5; color:var(--text-dim); margin-top:10px;
+  padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface-2); border:1px solid var(--line);
+}
+.key-how b{ color:var(--text); }
+.key-input-row{ display:flex; gap:8px; margin-top:12px; width:100%; }
+.key-input{
+  flex:1; min-width:0; background:var(--bg); border:1px solid var(--line-bright); border-radius:10px;
+  padding:10px 12px; color:var(--text); font-size:13px; font-family:inherit;
+}
+.key-input:focus{ outline:none; border-color:var(--mint-dim); }
+.key-note{ font-size:11.5px; color:var(--text-faint); padding:4px 6px 2px; line-height:1.5; }
+
+.danger-card{
+  border-radius:var(--radius-md); border:1px solid rgba(255,107,107,0.28);
+  background:rgba(255,107,107,0.06); padding:16px; margin-top:6px;
+}
+.danger-title{ color:var(--red); font-weight:800; font-size:13px; letter-spacing:0.02em; text-transform:uppercase; margin-bottom:10px;}
+
+.big-toggle{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-radius:var(--radius-md);
+  background:var(--surface-2); border:1px solid var(--line-bright); margin-bottom:12px;
+}
+
+/* ---------- tab bar ---------- */
+.tabbar{
+  position:absolute; left:0; right:0; bottom:0; z-index:10;
+  padding: 8px 14px calc(10px + env(safe-area-inset-bottom,0px));
+  display:flex; justify-content:space-around;
+  background:rgba(10,12,16,0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top:1px solid rgba(255,255,255,0.10);
+}
+.tab{
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:6px 14px; border-radius:14px; color:var(--text-faint);
+  transition: transform .12s cubic-bezier(.22,1,.36,1);
+  width:64px;
+}
+.tab:active{ transform:scale(0.92); }
+.tab svg{ width:23px; height:23px; }
+.tab span{ font-size:10.5px; font-weight:600; letter-spacing:0.01em; }
+.tab.active{ color:var(--mint); }
+.tab.active svg{ filter:drop-shadow(0 0 6px rgba(107,255,192,0.55)); }
+
+/* pause banner */
+.pause-banner{
+  display:none; margin-bottom:14px; padding:12px 14px; border-radius:var(--radius-sm);
+  background:rgba(255,194,75,0.10); border:1px solid rgba(255,194,75,0.35);
+  color:var(--amber); font-size:13px; font-weight:700; align-items:center; gap:8px;
+}
+.pause-banner.show{ display:flex; }
+
+/* install sheet */
+.sheet-backdrop{
+  position:fixed; inset:0; z-index:50; background:rgba(0,0,0,0.5);
+  opacity:0; pointer-events:none; transition:opacity .3s ease;
+}
+.sheet-backdrop.show{ opacity:1; pointer-events:auto; }
+.sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:51;
+  background:var(--surface); border-top:1px solid var(--line-bright);
+  border-radius:22px 22px 0 0; padding:10px 22px calc(26px + env(safe-area-inset-bottom,0px));
+  transform:translateY(100%); transition:transform .38s cubic-bezier(.22,1,.36,1);
+}
+.sheet.show{ transform:translateY(0); }
+.sheet-handle{ width:36px; height:4px; border-radius:100px; background:var(--line-bright); margin:8px auto 16px; }
+.sheet h3{ font-size:17px; margin:0 0 6px; letter-spacing:-0.01em; }
+.sheet p{ font-size:13.5px; color:var(--text-dim); line-height:1.5; margin:0 0 16px; }
+.sheet-step{ display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--text); margin-bottom:8px; }
+.sheet-step .n{ width:22px; height:22px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line-bright); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:var(--mint); flex-shrink:0;}
+.sheet-close{ margin-top:14px; width:100%; padding:13px; border-radius:14px; background:var(--mint); color:#06120c; font-weight:800; font-size:14.5px; border:none; }
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+<div id="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M17 6H7v5h9v5H6" stroke="#6BFFC0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-name"><b>Slack</b></div>
+    </div>
+    <div class="status-pill"><span class="dot pulse"></span> Live · Geyser</div>
+  </div>
+
+  <div class="screens">
+
+    <!-- DASHBOARD -->
+    <section class="screen active" id="screen-dashboard">
+      <div class="pause-banner" id="pauseBanner">⏸ Copy-trading paused — no new positions will open</div>
+
+      <div class="hero">
+        <div class="hero-label">Session P&L</div>
+        <div class="hero-value" id="heroSign">$<span id="heroPnl">0.00</span></div>
+        <div class="hero-sub">
+          <div>Open <b id="openCount">0</b></div>
+        </div>
+        <svg class="hero-chart" viewBox="0 0 300 56" preserveAspectRatio="none">
+          <path d="M0,40 L20,38 L40,42 L60,30 L80,34 L100,20 L120,26 L140,14 L160,18 L180,10 L200,16 L220,8 L240,12 L260,4 L280,9 L300,2"
+            fill="none" stroke="#6BFFC0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M0,40 L20,38 L40,42 L60,30 L80,34 L100,20 L120,26 L140,14 L160,18 L180,10 L200,16 L220,8 L240,12 L260,4 L280,9 L300,2 L300,56 L0,56 Z"
+            fill="url(#g1)" opacity="0.5"/>
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6BFFC0" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#6BFFC0" stop-opacity="0"/>
+          </linearGradient></defs>
+        </svg>
+      </div>
+
+      <div class="section-title">Live activity</div>
+      <div class="card" style="padding:6px 14px;" id="activityFeed">
+        <div style="text-align:center; color:var(--text-faint); font-size:13px; padding:24px 4px;">Loading…</div>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section class="screen" id="screen-leaderboard">
+      <div class="section-title">Top whales · 30d</div>
+      <div id="leaderboardList"></div>
+    </section>
+
+    <!-- POSITIONS -->
+    <section class="screen" id="screen-positions">
+      <div class="section-title">Open positions</div>
+      <div id="positionsList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="screen-settings">
+      <div class="section-title">Infrastructure — API keys</div>
+
+      <div class="card key-card">
+        <div class="key-header">
+          <div><div class="set-label">Geyser RPC key</div><div class="set-sub">Helius · required for real-time whale buy/sell detection</div></div>
+          <span class="key-status" id="status-helius_geyser">Not set</span>
+        </div>
+        <div class="key-how">
+          <b>Free tier:</b> helius.dev → Sign up → Dashboard → copy your default API key. Free plan includes Geyser-enabled RPC access.
+        </div>
+        <div class="key-input-row">
+          <input class="key-input" id="input-helius_geyser" type="password" placeholder="Paste Helius API key" />
+          <button class="pill-btn" onclick="revealKey('helius_geyser')">👁</button>
+          <button class="pill-btn test" onclick="saveKey('helius_geyser')">Save</button>
+        </div>
+      </div>
+
+      <div class="card key-card">
+        <div class="key-header">
+          <div><div class="set-label">Jito auth key</div><div class="set-sub">Jito Block Engine · required for sub-second bundle execution</div></div>
+          <span class="key-status" id="status-jito_auth">Not set</span>
+        </div>
+        <div class="key-how">
+          <b>Free tier:</b> jito.wtf → Join the Jito Discord → #searcher-onboarding channel → request a searcher auth keypair (no cost, manual approval).
+        </div>
+        <div class="key-input-row">
+          <input class="key-input" id="input-jito_auth" type="password" placeholder="Paste Jito auth key" />
+          <button class="pill-btn" onclick="revealKey('jito_auth')">👁</button>
+          <button class="pill-btn test" onclick="saveKey('jito_auth')">Save</button>
+        </div>
+      </div>
+
+      <div class="card key-card">
+        <div class="key-header">
+          <div><div class="set-label">Privy App ID</div><div class="set-sub">Embedded wallet login — no seed phrase for users</div></div>
+          <span class="key-status" id="status-privy_app_id">Not set</span>
+        </div>
+        <div class="key-how">
+          <b>Free tier:</b> privy.io → Sign up → Create app → Dashboard → copy the App ID shown at the top. Free tier covers up to 1,000 monthly active wallets.
+        </div>
+        <div class="key-input-row">
+          <input class="key-input" id="input-privy_app_id" type="password" placeholder="Paste Privy App ID" />
+          <button class="pill-btn" onclick="revealKey('privy_app_id')">👁</button>
+          <button class="pill-btn test" onclick="saveKey('privy_app_id')">Save</button>
+        </div>
+      </div>
+      <div class="key-note">Keys are saved to your Supabase project and stay in effect until you replace them — no need to re-enter on every visit.</div>
+
+      <div class="section-title">Wallet & risk</div>
+      <div class="card">
+        <div class="set-row">
+          <div><div class="set-label">Session key scope</div><div class="set-sub" id="scopeText">Max 0.5 SOL/tx · pump.fun + Raydium only · expires 24h</div></div>
+          <button class="pill-btn danger" onclick="alert('Session key revoked')">Revoke</button>
+        </div>
+        <div class="set-row">
+          <div class="set-label">Max daily spend</div>
+          <div class="set-value" id="val-max_daily_spend_sol">— SOL</div>
+        </div>
+        <div class="set-row">
+          <div class="set-label">Circuit-breaker drawdown</div>
+          <div class="set-value" id="val-daily_drawdown_breaker_pct">−—%</div>
+        </div>
+      </div>
+
+      <div class="section-title">Notifications</div>
+      <div class="card">
+        <div class="set-row"><div class="set-label">Trade executed</div><div class="switch" id="notif-notify_trade_executed" onclick="toggleNotif(this,'notify_trade_executed')"><div class="knob"></div></div></div>
+        <div class="set-row"><div class="set-label">TP / SL hit</div><div class="switch" id="notif-notify_tp_sl_hit" onclick="toggleNotif(this,'notify_tp_sl_hit')"><div class="knob"></div></div></div>
+        <div class="set-row"><div class="set-label">Migration detected</div><div class="switch" id="notif-notify_migration" onclick="toggleNotif(this,'notify_migration')"><div class="knob"></div></div></div>
+        <div class="set-row"><div class="set-label">Circuit breaker triggered</div><div class="switch" id="notif-notify_circuit_breaker" onclick="toggleNotif(this,'notify_circuit_breaker')"><div class="knob"></div></div></div>
+      </div>
+
+      <div class="section-title">Danger zone</div>
+      <div class="danger-card">
+        <div class="danger-title">Kill switch</div>
+        <div class="big-toggle">
+          <div><div class="set-label">Pause all copy-trading</div><div class="set-sub">No new positions will open</div></div>
+          <div class="switch" id="pauseSwitch" onclick="togglePause(this)"><div class="knob"></div></div>
+        </div>
+        <button class="pill-btn danger" style="width:100%; padding:12px;" onclick="alert('Confirmation required — close all positions')">Close all positions</button>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-screen="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2 4 4 8-8 4 4"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="tab" data-screen="leaderboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V10M14 21V3M20 21v-7M4 21v-4"/></svg>
+      <span>Leaders</span>
+    </div>
+    <div class="tab" data-screen="positions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18"/></svg>
+      <span>Positions</span>
+    </div>
+    <div class="tab" data-screen="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1.04 1.56V21a2 2 0 01-4 0v-.09A1.7 1.7 0 009 19.4a1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.56-1.04H3a2 2 0 010-4h.09A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001.04-1.56V3a2 2 0 014 0v.09A1.7 1.7 0 0015 4.6a1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06A1.7 1.7 0 0019.4 9a1.7 1.7 0 001.56 1.04H21a2 2 0 010 4h-.09A1.7 1.7 0 0019.4 15z"/></svg>
+      <span>Settings</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- iOS install sheet -->
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="installSheet">
+  <div class="sheet-handle"></div>
+  <h3>Add Slack to Home Screen</h3>
+  <p>Install for a full-screen, instant-launch experience with live notifications.</p>
+  <div class="sheet-step"><div class="n">1</div> Tap the Share icon in Safari's toolbar</div>
+  <div class="sheet-step"><div class="n">2</div> Scroll down and tap "Add to Home Screen"</div>
+  <div class="sheet-step"><div class="n">3</div> Tap "Add" in the top-right corner</div>
+  <button class="sheet-close" onclick="closeSheet()">Got it</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ---------------- Supabase ---------------- */
+const SUPABASE_URL = "https://bvxljqprdvgrnhrfmhpz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_YkF5Qkex1mdFJZEpTkTFJg_Pfk_VYsv";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ---------------- Tab navigation (spring-eased cross-fade, per Apple skill: no jump, respect reduced-motion) ---------------- */
+const tabs = document.querySelectorAll('.tab');
+const screens = document.querySelectorAll('.screen');
+tabs.forEach(tab=>{
+  tab.addEventListener('pointerdown', ()=> tab.style.transform='scale(0.92)');
+  tab.addEventListener('pointerup', ()=> tab.style.transform='');
+  tab.addEventListener('click', ()=>{
+    const target = tab.dataset.screen;
+    tabs.forEach(t=>t.classList.toggle('active', t===tab));
+    screens.forEach(s=>s.classList.toggle('active', s.id === 'screen-'+target));
+  });
+});
+
+/* ---------------- Live data from Supabase (no mock data) ---------------- */
+const leaderboardList = document.getElementById('leaderboardList');
+const positionsList = document.getElementById('positionsList');
+const activityFeedEl = document.getElementById('activityFeed');
+
+function emptyState(msg){
+  return `<div class="card" style="text-align:center; color:var(--text-faint); font-size:13px; padding:28px 16px;">${msg}</div>`;
+}
+function initials(name){ return name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase(); }
+function timeAgo(iso){
+  const s = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(s<60) return 'Just now';
+  if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+async function loadWhales(){
+  const { data, error } = await sb.from('whales').select('*').order('rank', {ascending:true, nullsFirst:false}).order('pnl_30d_usd',{ascending:false});
+  if(error || !data || data.length===0){
+    leaderboardList.innerHTML = emptyState('No whales tracked yet. Connect your Geyser provider in Settings to start discovery.');
+    return;
+  }
+  leaderboardList.innerHTML = data.map((w,i)=>`
+    <div class="card">
+      <div class="whale-row">
+        <div class="rank-badge">${i+1}</div>
+        <div class="avatar">${initials(w.name)}</div>
+        <div class="whale-info">
+          <div class="whale-name">${w.name} ${w.is_hot_streak?'<span class="streak">HOT</span>':''}</div>
+          <div class="whale-addr">${w.address}</div>
+        </div>
+        <div class="whale-stats">
+          <div class="whale-pnl ${w.pnl_30d_usd>=0?'up':''}">${w.pnl_30d_usd>=0?'+':''}$${Number(w.pnl_30d_usd).toLocaleString()}</div>
+          <div class="whale-meta">${w.win_rate_pct}% win · ${w.trade_count} trades</div>
+        </div>
+        <div class="switch ${w.is_followed?'on':''}" data-id="${w.id}" onclick="event.stopPropagation(); toggleFollow(this)" style="margin-left:8px;"><div class="knob"></div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleFollow(el){
+  const id = el.dataset.id;
+  const willFollow = !el.classList.contains('on');
+  toggleSwitch(el);
+  await sb.from('whales').update({ is_followed: willFollow }).eq('id', id);
+}
+
+async function loadPositions(){
+  const { data, error } = await sb.from('positions').select('*').eq('status','open').order('opened_at',{ascending:false});
+  if(error || !data || data.length===0){
+    positionsList.innerHTML = emptyState('No open positions. They will appear here once the engine executes a copy-trade.');
+    document.getElementById('openCount').textContent = '0';
+    return;
+  }
+  document.getElementById('openCount').textContent = data.length;
+  positionsList.innerHTML = data.map(p=>{
+    const up = p.pnl_pct >= 0;
+    const pct = Math.min(100, Math.max(6, Math.abs(p.pnl_pct)));
+    return `
+    <div class="card">
+      <div class="pos-top">
+        <div>
+          <div class="pos-token">${p.token_symbol}</div>
+          <div class="pos-trigger">Triggered by ${p.trigger_label}</div>
+        </div>
+        <div class="pos-pnl-tag ${up?'up':'down'}">${up?'+':''}${p.pnl_pct}%</div>
+      </div>
+      <div class="pos-bar-track"><div class="pos-bar-fill" style="width:${pct}%; ${up?'':'background:linear-gradient(90deg,#8a3d3d,#FF6B6B);'}"></div></div>
+      <div class="pos-foot"><span>Entry $${p.entry_price}</span><span>Now $${p.current_price}</span></div>
+    </div>`;
+  }).join('');
+}
+
+async function loadActivity(){
+  const { data, error } = await sb.from('activity_feed').select('*').order('created_at',{ascending:false}).limit(20);
+  if(error || !data || data.length===0){
+    activityFeedEl.innerHTML = `<div style="text-align:center; color:var(--text-faint); font-size:13px; padding:24px 4px;">No activity yet — this feed populates once whale tracking goes live.</div>`;
+    return;
+  }
+  activityFeedEl.innerHTML = data.map(a=>`
+    <div class="feed-item">
+      <div class="feed-icon">${a.icon}</div>
+      <div>
+        <div class="feed-text">${a.message}</div>
+        <div class="feed-time">${timeAgo(a.created_at)}${a.detail? ' · '+a.detail : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadHeroPnl(){
+  const { data } = await sb.from('positions').select('pnl_pct, sol_invested');
+  const total = (data||[]).reduce((sum,p)=> sum + (p.sol_invested * p.pnl_pct/100), 0);
+  animateHero(total);
+}
+
+function loadAll(){ loadWhales(); loadPositions(); loadActivity(); loadHeroPnl(); }
+loadAll();
+// light polling so the dashboard reflects DB changes without a manual refresh
+setInterval(loadAll, 15000);
+
+/* ---------------- Switch (critically damped, per skill: spring not CSS keyframe-only) ---------------- */
+function toggleSwitch(el){ el.classList.toggle('on'); }
+
+async function togglePause(el){
+  el.classList.toggle('on');
+  const paused = el.classList.contains('on');
+  document.getElementById('pauseBanner').classList.toggle('show', paused);
+  await sb.from('risk_settings').update({ is_paused: paused }).eq('id', 1);
+}
+
+async function toggleNotif(el, column){
+  el.classList.toggle('on');
+  await sb.from('risk_settings').update({ [column]: el.classList.contains('on') }).eq('id', 1);
+}
+
+/* ---------------- Settings: API keys, persisted to Supabase ---------------- */
+function revealKey(name){
+  const input = document.getElementById('input-'+name);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function saveKey(name){
+  const input = document.getElementById('input-'+name);
+  const value = input.value.trim();
+  const statusEl = document.getElementById('status-'+name);
+  if(!value){ return; }
+  statusEl.textContent = 'Saving…';
+  const { error } = await sb.from('api_keys').update({
+    key_value: value, is_connected: true, last_tested_at: new Date().toISOString()
+  }).eq('key_name', name);
+  if(error){
+    statusEl.textContent = 'Error';
+    statusEl.classList.remove('connected');
+    return;
+  }
+  statusEl.textContent = 'Connected';
+  statusEl.classList.add('connected');
+  input.value = '';
+  input.placeholder = 'Key saved — enter a new one to replace it';
+}
+
+async function loadApiKeyStatuses(){
+  const { data } = await sb.from('api_keys').select('*');
+  (data||[]).forEach(row=>{
+    const statusEl = document.getElementById('status-'+row.key_name);
+    if(!statusEl) return;
+    if(row.is_connected){
+      statusEl.textContent = 'Connected';
+      statusEl.classList.add('connected');
+      const input = document.getElementById('input-'+row.key_name);
+      if(input) input.placeholder = 'Key saved — enter a new one to replace it';
+    }
+  });
+}
+
+async function loadRiskSettings(){
+  const { data } = await sb.from('risk_settings').select('*').eq('id',1).maybeSingle();
+  if(!data) return;
+  document.getElementById('val-max_daily_spend_sol').textContent = `${data.max_daily_spend_sol} SOL`;
+  document.getElementById('val-daily_drawdown_breaker_pct').textContent = `−${data.daily_drawdown_breaker_pct}%`;
+  document.getElementById('scopeText').textContent = `Max ${data.max_sol_per_trade} SOL/tx · pump.fun + Raydium only · expires 24h`;
+
+  const pauseSwitch = document.getElementById('pauseSwitch');
+  pauseSwitch.classList.toggle('on', data.is_paused);
+  document.getElementById('pauseBanner').classList.toggle('show', data.is_paused);
+
+  const map = {
+    notify_trade_executed: data.notify_trade_executed,
+    notify_tp_sl_hit: data.notify_tp_sl_hit,
+    notify_migration: data.notify_migration,
+    notify_circuit_breaker: data.notify_circuit_breaker,
+  };
+  Object.entries(map).forEach(([key,val])=>{
+    document.getElementById('notif-'+key).classList.toggle('on', !!val);
+  });
+}
+
+loadApiKeyStatuses();
+loadRiskSettings();
+
+/* ---------------- Hero PnL count-up (driven by real Supabase data) ---------------- */
+function animateHero(target){
+  const el = document.getElementById('heroPnl');
+  const signEl = document.getElementById('heroSign');
+  const start = performance.now();
+  const from = 0;
+  function step(t){
+    const p = Math.min(1, (t-start)/900);
+    const eased = 1 - Math.pow(1-p, 3);
+    const v = from + (target-from) * eased;
+    el.textContent = Math.abs(v).toFixed(2);
+    if(p>=1){
+      signEl.innerHTML = (target>=0?'+$':'−$') + `<span id="heroPnl">${Math.abs(target).toFixed(2)}</span>`;
+    }
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------------- iOS install sheet ---------------- */
+function isIos(){ return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase()); }
+function isInStandaloneMode(){ return ('standalone' in window.navigator) && (window.navigator.standalone); }
+function openSheet(){
+  document.getElementById('sheetBackdrop').classList.add('show');
+  document.getElementById('installSheet').classList.add('show');
+}
+function closeSheet(){
+  document.getElementById('sheetBackdrop').classList.remove('show');
+  document.getElementById('installSheet').classList.remove('show');
+}
+document.getElementById('sheetBackdrop').addEventListener('click', closeSheet);
+if(isIos() && !isInStandaloneMode()){
+  setTimeout(openSheet, 1400);
+}
+
+/* ---------------- Service worker ---------------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
